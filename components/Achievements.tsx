@@ -13,7 +13,7 @@ export default function Achievements() {
         "Maintained highly available Kubernetes workloads with monitoring and alerting.",
     },
     {
-      value: "40%",
+      value: "50%",
       title: "Faster Incident Resolution",
       description:
         "Resolved critical P1/P2 incidents significantly faster than SLA targets.",
