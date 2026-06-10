@@ -1,62 +1,46 @@
 const projects = [
   {
     title: "Distributed Automation Platform",
-    stack: [
-      "Python",
-      "Docker",
-      "Ansible",
-      "RabbitMQ",
-      "Linux",
-    ],
-    description:
-      "Designed and built a distributed execution platform capable of running isolated workloads across multiple environments with automated orchestration and reporting.",
+    stack: ["Python", "Docker", "RabbitMQ", "Ansible", "Linux"],
+    challenge:
+      "Manual execution and orchestration of workloads across environments was slow, repetitive and difficult to scale.",
+    solution:
+      "Designed and built a distributed execution platform capable of running isolated workloads with automated orchestration, reporting and queue-based task distribution.",
     impact:
-      "Enabled scalable workload execution with reusable automation and fault-tolerant task processing.",
+      "Enabled scalable workload execution, improved automation reusability and increased operational efficiency.",
   },
 
   {
     title: "Kubernetes Migration Initiative",
-    stack: [
-      "Kubernetes",
-      "Docker",
-      "Linux",
-      "Prometheus",
-      "Grafana",
-    ],
-    description:
-      "Migrated containerized services from Docker Compose to Kubernetes, improving orchestration, scalability and resilience.",
+    stack: ["Kubernetes", "Docker", "Prometheus", "Grafana", "Linux"],
+    challenge:
+      "Existing containerized services relied on Docker Compose and lacked orchestration capabilities required for growth.",
+    solution:
+      "Migrated applications to Kubernetes and implemented monitoring, health checks and deployment standardization.",
     impact:
-      "Improved deployment consistency, service availability and operational efficiency.",
+      "Improved scalability, deployment consistency and service reliability.",
   },
 
   {
     title: "RabbitMQ Task Processing System",
-    stack: [
-      "RabbitMQ",
-      "Python",
-      "Linux",
-      "Docker",
-    ],
-    description:
-      "Built a distributed asynchronous task processing architecture using queue-based workload distribution and worker orchestration.",
+    stack: ["RabbitMQ", "Python", "Docker", "Linux"],
+    challenge:
+      "Synchronous processing created execution bottlenecks and limited workload scaling.",
+    solution:
+      "Implemented queue-based asynchronous processing with worker orchestration and fault-tolerant message handling.",
     impact:
-      "Improved execution reliability and enabled horizontal scaling of workloads.",
+      "Enabled horizontal scaling and improved processing reliability.",
   },
 
   {
     title: "AWS Infrastructure Automation",
-    stack: [
-      "AWS",
-      "Terraform",
-      "Ansible",
-      "EC2",
-      "IAM",
-      "VPC",
-    ],
-    description:
-      "Automated provisioning and configuration of cloud infrastructure using Infrastructure as Code principles.",
+    stack: ["AWS", "Terraform", "Ansible", "EC2", "IAM", "VPC"],
+    challenge:
+      "Manual infrastructure provisioning resulted in inconsistent environments and deployment delays.",
+    solution:
+      "Implemented Infrastructure as Code using Terraform and Ansible to provision and configure AWS resources automatically.",
     impact:
-      "Reduced environment setup time and improved deployment consistency across environments.",
+      "Reduced provisioning effort and improved environment consistency across teams.",
   },
 ];
 
@@ -71,14 +55,14 @@ export default function Projects() {
           PROJECTS
         </p>
 
-        <h2 className="text-4xl font-bold mt-3">
+        <h2 className="text-3xl font-bold mt-2">
           Featured Work
         </h2>
 
         <p className="text-slate-400 mt-4 max-w-3xl">
-          Production-grade DevOps and platform engineering
-          initiatives focused on automation, scalability,
-          observability and reliability.
+          Cloud, automation and platform engineering projects
+          focused on scalability, reliability and operational
+          excellence.
         </p>
       </div>
 
@@ -86,17 +70,13 @@ export default function Projects() {
         {projects.map((project) => (
           <div
             key={project.title}
-            className="border border-slate-800 rounded-2xl p-8 bg-slate-900/50 hover:border-blue-500 transition"
+            className="border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition bg-slate-900/20"
           >
             <h3 className="text-2xl font-semibold">
               {project.title}
             </h3>
 
-            <p className="mt-4 text-slate-400">
-              {project.description}
-            </p>
-
-            <div className="mt-6 flex flex-wrap gap-2">
+            <div className="mt-5 flex flex-wrap gap-2">
               {project.stack.map((tech) => (
                 <span
                   key={tech}
@@ -107,14 +87,38 @@ export default function Projects() {
               ))}
             </div>
 
-            <div className="mt-6 border-t border-slate-800 pt-6">
-              <p className="text-sm text-slate-400">
-                Impact
-              </p>
+            <div className="mt-6 space-y-5">
 
-              <p className="mt-2 font-medium">
-                {project.impact}
-              </p>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-blue-400">
+                  Challenge
+                </p>
+
+                <p className="mt-2 text-slate-300">
+                  {project.challenge}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs uppercase tracking-wider text-blue-400">
+                  Solution
+                </p>
+
+                <p className="mt-2 text-slate-300">
+                  {project.solution}
+                </p>
+              </div>
+
+              <div className="border-t border-slate-800 pt-5">
+                <p className="text-xs uppercase tracking-wider text-blue-400">
+                  Impact
+                </p>
+
+                <p className="mt-2 font-medium text-white">
+                  {project.impact}
+                </p>
+              </div>
+
             </div>
           </div>
         ))}
