@@ -26,6 +26,9 @@ export default function Hero() {
         <span>DevOps & Cloud Engineer</span>
         <span>Gurugram, India</span>
       </div>
+      <p className="mt-4 text-sm text-slate-500">
+        Last Updated: June 2026
+      </p>
 
       {/* Skills */}
       <div className="mt-8 flex flex-wrap gap-3">

@@ -9,25 +9,32 @@ export default function About() {
       </h2>
 
       <div className="max-w-4xl text-slate-300 text-lg leading-8">
+
         <p>
-          I'm a DevOps / DevSecOps Engineer with 3.5+
-          years of experience designing cloud
-          infrastructure, CI/CD pipelines, Kubernetes
-          platforms and automation solutions.
+          I'm a DevOps Engineer with 3.5+ years of experience
+          designing, automating and operating cloud-native
+          infrastructure across AWS environments. My focus is
+          on building scalable platforms, reliable deployment
+          pipelines and efficient infrastructure automation
+          solutions.
         </p>
 
         <p className="mt-6">
-          My expertise spans AWS, Terraform, Ansible,
-          Docker, Kubernetes, Jenkins, GitLab CI/CD,
-          RabbitMQ, Prometheus and Grafana.
+          Throughout my career, I've worked extensively with
+          AWS, Kubernetes, Terraform, Ansible, Docker,
+          Jenkins and observability tools to improve system
+          reliability, deployment velocity and operational
+          efficiency.
         </p>
 
         <p className="mt-6">
-          I enjoy solving infrastructure challenges,
-          automating repetitive processes and building
-          scalable distributed systems that improve
-          reliability and deployment speed.
+          I enjoy solving complex infrastructure challenges,
+          implementing Infrastructure as Code practices and
+          building automation that reduces manual effort while
+          enabling teams to deliver software faster and more
+          reliably.
         </p>
+
       </div>
     </section>
   );
