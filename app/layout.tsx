@@ -1,3 +1,4 @@
+import Clarity from "../components/Clarity";
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -80,7 +81,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Clarity />
+        {children}
+      </body>
     </html>
   );
 }
