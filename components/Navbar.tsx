@@ -43,6 +43,13 @@ export default function Navbar() {
           </a>
 
           <a
+            href="/blog"
+            className="hover:text-white transition"
+          >
+            Blog
+          </a>
+
+          <a
             href="#contact"
             className="hover:text-white transition"
           >

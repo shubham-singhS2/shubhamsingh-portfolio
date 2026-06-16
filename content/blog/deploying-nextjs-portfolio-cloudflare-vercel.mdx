@@ -1,0 +1,350 @@
+---
+title: "From GitHub to Production: Deploying a Next.js Portfolio with Vercel, Custom Domain, and Cloudflare"
+date: "2026-06-17"
+description: "A complete step-by-step guide to deploying a Next.js portfolio with automated CI/CD, custom domain, Cloudflare CDN, HTTPS, HTTP/3, and bot protection."
+readingTime: "8 min read"
+tags: ["Next.js", "Vercel", "Cloudflare", "DevOps", "Web Deployment"]
+---
+
+### From GitHub to Production: Deploying a Next.js Portfolio with Vercel, Custom Domain, and Cloudflare
+
+Deploying a portfolio sounds straightforward — until you start digging into DNS propagation, SSL modes, reverse proxies, and HTTP/3. This guide walks through the exact process I followed to take a Next.js portfolio from a local project to a production-grade deployment with a custom domain, Cloudflare in front of Vercel, and a full security + observability setup.
+
+By the end, you'll have this architecture running for your own portfolio:
+
+```
+User Browser → Cloudflare → Vercel → Next.js App
+```
+
+---
+
+## What You'll Set Up
+
+-  Automated CI/CD (GitHub → Vercel)
+-  Custom domain
+-  Cloudflare CDN + DDoS protection
+-  TLS 1.3 + HTTPS everywhere
+-  HTTP/3
+-  DNSSEC
+-  Bot protection
+-  Traffic analytics
+
+---
+
+## Prerequisites
+
+- A Next.js project pushed to a GitHub repository
+- A registered domain (from GoDaddy, Namecheap, or any registrar)
+- A free [Vercel](https://vercel.com) account
+- A free [Cloudflare](https://cloudflare.com) account
+
+---
+
+## Step 1: Build Your Next.js Portfolio
+
+Your portfolio should be a standard Next.js project. A typical structure looks like this:
+
+```
+my-portfolio/
+├── app/
+├── components/
+├── public/
+├── content/
+└── package.json
+```
+
+A recommended stack:
+
+- **Next.js App Router** — for routing and server components
+- **TypeScript** — for type safety
+- **Tailwind CSS** — for styling
+
+Include an `og-image.png` (1200×630px) in `/public/` for social sharing previews.
+
+---
+
+## Step 2: Configure Metadata and OpenGraph
+
+Before deploying, set up SEO metadata in your root `layout.tsx`:
+
+```tsx
+// app/layout.tsx
+export const metadata = {
+  title: "Your Name | DevOps Engineer",
+  description: "DevOps Engineer specializing in AWS, Kubernetes, and Terraform",
+  openGraph: {
+    title: "Your Name | DevOps Engineer",
+    description: "Your portfolio description here",
+    images: ["/og-image.png"],
+  },
+};
+```
+
+This makes LinkedIn, WhatsApp, and Twitter display rich link previews when someone shares your portfolio URL.
+
+---
+
+## Step 3: Push to GitHub
+
+If you haven't already, push your project to GitHub:
+
+```bash
+git init
+git add .
+git commit -m "Initial portfolio commit"
+git branch -M main
+git remote add origin https://github.com/your-username/your-portfolio.git
+git push -u origin main
+```
+
+Every future `git push` to `main` will automatically trigger a new deployment once Vercel is connected.
+
+---
+
+## Step 4: Deploy to Vercel
+
+Vercel is the easiest way to deploy Next.js — it's built by the same team.
+
+1. Go to [vercel.com](https://vercel.com) and sign in with GitHub
+2. Click **Add New → Project**
+3. Import your portfolio repository
+4. Vercel will auto-detect the Next.js framework — keep the default settings
+5. Click **Deploy**
+
+Your portfolio will be live at a `*.vercel.app` URL within a minute or two.
+
+From this point on, every push to `main` triggers:
+
+```
+GitHub Push → Vercel Build → Production Deployment
+```
+
+No manual deploys needed.
+
+---
+
+## Step 5: Purchase a Custom Domain
+
+Buy a domain from any registrar you prefer:
+
+- [GoDaddy](https://godaddy.com)
+- [Namecheap](https://namecheap.com)
+- [Porkbun](https://porkbun.com) *(affordable, recommended)*
+- [Cloudflare Registrar](https://cloudflare.com/products/registrar/) *(at-cost pricing)*
+
+For a DevOps/engineering portfolio, `.in`, `.dev`, `.io`, or `.com` all work well.
+
+---
+
+## Step 6: Connect Your Domain to Vercel
+
+Inside your Vercel project:
+
+1. Go to **Settings → Domains**
+2. Add both your root domain and `www` subdomain:
+   - `yourdomain.com`
+   - `www.yourdomain.com`
+
+Vercel will provide DNS records. Note them down — you'll need them shortly.
+
+Example records Vercel typically provides:
+
+| Type  | Name | Value                  |
+|-------|------|------------------------|
+| A     | @    | `76.76.21.21`          |
+| CNAME | www  | `cname.vercel-dns.com` |
+
+>  **Don't add these to your registrar yet.** You'll add them to Cloudflare instead in the next steps.
+
+---
+
+## Step 7: Add Your Site to Cloudflare
+
+Cloudflare acts as a reverse proxy in front of Vercel, giving you a CDN, DDoS protection, HTTP/3, and more — all for free.
+
+1. Go to [cloudflare.com](https://cloudflare.com) and create a free account
+2. Click **Add a Site** and enter your domain
+3. Select the **Free** plan
+4. Cloudflare will scan your existing DNS records — review and continue
+
+---
+
+## Step 8: Update Nameservers at Your Registrar
+
+After adding your site, Cloudflare assigns two nameservers. They look like:
+
+```
+delta.ns.cloudflare.com
+charlie.ns.cloudflare.com
+```
+
+*(Your nameservers will be different — check your Cloudflare dashboard.)*
+
+Go to your domain registrar and replace the default nameservers with the Cloudflare ones.
+
+**On GoDaddy:**
+- My Products → DNS → Nameservers → Change → Enter Custom Nameservers
+
+**On Namecheap:**
+- Domain List → Manage → Nameservers → Custom DNS → Enter Cloudflare nameservers
+
+DNS propagation can take anywhere from a few minutes to 48 hours. Cloudflare will notify you by email once it's active.
+
+---
+
+## Step 9: Configure DNS Records in Cloudflare
+
+Once your nameservers have propagated, set up your DNS records in the Cloudflare dashboard under **DNS → Records**:
+
+| Type  | Name | Value                           | Proxy Status |
+|-------|------|---------------------------------|--------------|
+| A     | @    | *(Vercel IP from Step 6)*       | Proxied 🟠   |
+| CNAME | www  | *(Vercel CNAME from Step 6)*    | Proxied 🟠   |
+
+The **orange cloud (Proxied)** is critical — it routes all traffic through Cloudflare, enabling the CDN and protection features.
+
+---
+
+## Step 10: Enable SSL/TLS
+
+In Cloudflare, go to **SSL/TLS → Overview** and set the mode to:
+
+```
+Full (Strict)
+```
+
+> **Why Full (Strict)?**  
+> - **Flexible** encrypts only between the user and Cloudflare — traffic to Vercel is unencrypted.  
+> - **Full** encrypts end-to-end but doesn't verify Vercel's certificate.  
+> - **Full (Strict)** encrypts end-to-end and validates Vercel's certificate — the most secure option.
+
+Then enable these additional settings under **SSL/TLS → Edge Certificates**:
+
+-  Always Use HTTPS
+-  Automatic HTTPS Rewrites
+-  Minimum TLS Version: **TLS 1.2** (TLS 1.3 will be negotiated where supported)
+
+---
+
+## Step 11: Verify HTTP/3 and TLS 1.3
+
+Cloudflare enables HTTP/3 automatically. To verify it's active for your domain, visit:
+
+```
+https://yourdomain.com/cdn-cgi/trace
+```
+
+Look for these lines in the output:
+
+```
+http=http/3
+tls=TLSv1.3
+```
+
+If you see them, you're running the latest transport protocols. HTTP/3 provides faster connections, better mobile performance, and reduced latency — especially on lossy networks.
+
+---
+
+## Step 12: Enable Bot Protection
+
+In Cloudflare, go to **Security → Bots** and enable:
+
+- **Bot Fight Mode** (free tier) — blocks automated scanners, crawlers, and abuse traffic
+
+For stricter control, the paid **Bot Management** product offers more granular rules, but Bot Fight Mode is sufficient for a portfolio.
+
+---
+
+## Step 13: Set Up Analytics
+
+Two analytics tools work well together for a portfolio:
+
+### Cloudflare Analytics (Built-in)
+Available in your Cloudflare dashboard under **Analytics**. Provides:
+- Request volume and traffic trends
+- Geographic distribution of visitors
+- Security event logs (blocked bots, threats)
+
+No code changes needed.
+
+### Microsoft Clarity (Free)
+[Clarity](https://clarity.microsoft.com) provides session recordings and heatmaps so you can see how visitors actually interact with your portfolio.
+
+1. Create a free Clarity account
+2. Add your site and copy the tracking snippet
+3. Add it to your Next.js layout:
+
+```tsx
+// app/layout.tsx
+import Script from "next/script";
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <head>
+        <Script
+          strategy="afterInteractive"
+          src="https://www.clarity.ms/tag/YOUR_CLARITY_ID"
+        />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+Replace `YOUR_CLARITY_ID` with the ID from your Clarity dashboard.
+
+---
+
+## Final Architecture
+
+Here's what the full setup looks like end-to-end:
+
+```
+User Browser
+    ↓
+Cloudflare (CDN, DDoS, Bot Protection, HTTP/3, TLS 1.3)
+    ↓
+Vercel (Build, Hosting, Edge Network)
+    ↓
+Next.js Portfolio
+```
+
+---
+
+## Summary Checklist
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Build Next.js portfolio locally | ✅ |
+| 2 | Configure metadata + OpenGraph | ✅ |
+| 3 | Push to GitHub | ✅ |
+| 4 | Deploy to Vercel | ✅ |
+| 5 | Purchase custom domain | ✅ |
+| 6 | Add domain to Vercel | ✅ |
+| 7 | Add site to Cloudflare | ✅ |
+| 8 | Update nameservers at registrar | ✅ |
+| 9 | Configure DNS in Cloudflare (Proxied) | ✅ |
+| 10 | Enable SSL Full (Strict) + HTTPS | ✅ |
+| 11 | Verify HTTP/3 + TLS 1.3 | ✅ |
+| 12 | Enable Bot Fight Mode | ✅ |
+| 13 | Set up Analytics | ✅ |
+
+---
+
+## What I Learned
+
+Deploying a portfolio looks simple from the outside, but it touches almost every layer of web infrastructure:
+
+- **DNS** — how nameservers, A records, and CNAMEs interact
+- **Reverse proxying** — how Cloudflare sits in front of Vercel without breaking anything
+- **TLS/SSL modes** — why "Full (Strict)" matters and what the alternatives trade off
+- **HTTP/3** — how QUIC improves over TCP for real users
+- **CI/CD** — how a simple `git push` triggers a full build and deploy pipeline
+- **Observability** — combining Cloudflare Analytics and Clarity for full visibility
+
+These are the same concepts you'll use in production cloud infrastructure at scale. A portfolio deployment is a great way to get hands-on with all of them in a low-stakes environment.
+
+---
+
