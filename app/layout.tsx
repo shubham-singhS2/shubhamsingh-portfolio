@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://shubhamsingh.xyz"),
+  metadataBase: new URL("https://shubham-singh.in"),
 
   title: "Shubham Singh | DevOps Engineer",
 
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     description:
       "DevOps Engineer specializing in AWS, Kubernetes, Terraform, CI/CD and Infrastructure Automation.",
 
-    url: "https://shubhamsingh.xyz",
+    url: "https://shubham-singh.in",
 
     siteName: "Shubham Singh Portfolio",
 
