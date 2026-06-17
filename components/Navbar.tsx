@@ -12,36 +12,49 @@ export default function Navbar() {
         </a>
 
         {/* Navigation */}
-        <div className="hidden md:flex items-center gap-8 text-sm text-slate-300">
+        <div className="flex items-center gap-4 md:gap-8 text-sm text-slate-300">
 
-          <a
-            href="#about"
-            className="hover:text-white transition"
-          >
-            About
-          </a>
+          {/* Desktop Links Only */}
+          <div className="hidden md:flex items-center gap-8">
 
-          <a
-            href="#skills"
-            className="hover:text-white transition"
-          >
-            Skills
-          </a>
+            <a
+              href="#about"
+              className="hover:text-white transition"
+            >
+              About
+            </a>
 
-          <a
-            href="#experience"
-            className="hover:text-white transition"
-          >
-            Experience
-          </a>
+            <a
+              href="#skills"
+              className="hover:text-white transition"
+            >
+              Skills
+            </a>
 
-          <a
-            href="#projects"
-            className="hover:text-white transition"
-          >
-            Projects
-          </a>
+            <a
+              href="#experience"
+              className="hover:text-white transition"
+            >
+              Experience
+            </a>
 
+            <a
+              href="#projects"
+              className="hover:text-white transition"
+            >
+              Projects
+            </a>
+
+            <a
+              href="#contact"
+              className="hover:text-white transition"
+            >
+              Contact
+            </a>
+
+          </div>
+
+          {/* Always Visible */}
           <a
             href="/blog"
             className="hover:text-white transition"
@@ -50,21 +63,15 @@ export default function Navbar() {
           </a>
 
           <a
-            href="#contact"
-            className="hover:text-white transition"
-          >
-            Contact
-          </a>
-
-          <a
             href="/resume.pdf"
             target="_blank"
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg transition"
           >
             Resume
           </a>
 
         </div>
+
       </div>
     </nav>
   );
