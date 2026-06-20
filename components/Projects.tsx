@@ -46,83 +46,85 @@ const projects = [
 
 export default function Projects() {
   return (
-    <section
-      id="projects"
-      className="max-w-7xl mx-auto px-6 py-12"
-    >
-      <div className="mb-12">
-        <p className="text-blue-400 font-medium">
-          PROJECTS
-        </p>
+    // <div className="w-full bg-[#0b1222]">
+      <section
+        id="projects"
+        className="max-w-7xl mx-auto px-6 py-12"
+      >
+        <div className="mb-12">
+          <p className="text-blue-400 font-medium">
+            PROJECTS
+          </p>
 
-        <h2 className="text-3xl font-bold mt-2">
-          Featured Work
-        </h2>
+          <h2 className="text-3xl font-bold mt-2">
+            Featured Work
+          </h2>
 
-        <p className="text-slate-400 mt-4 max-w-3xl">
-          Cloud, automation and platform engineering projects
-          focused on scalability, reliability and operational
-          excellence.
-        </p>
-      </div>
+          <p className="text-slate-400 mt-4 max-w-3xl">
+            Cloud, automation and platform engineering projects
+            focused on scalability, reliability and operational
+            excellence.
+          </p>
+        </div>
 
-      <div className="grid lg:grid-cols-2 gap-8">
-        {projects.map((project) => (
-          <div
-            key={project.title}
-            className="border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition bg-slate-900/20"
-          >
-            <h3 className="text-2xl font-semibold">
-              {project.title}
-            </h3>
+        <div className="grid lg:grid-cols-2 gap-8">
+          {projects.map((project) => (
+            <div
+              key={project.title}
+              className="border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition bg-slate-900/20"
+            >
+              <h3 className="text-2xl font-semibold">
+                {project.title}
+              </h3>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              {project.stack.map((tech) => (
-                <span
-                  key={tech}
-                  className="bg-slate-800 px-3 py-1 rounded-lg text-sm"
-                >
-                  {tech}
-                </span>
-              ))}
+              <div className="mt-5 flex flex-wrap gap-2">
+                {project.stack.map((tech) => (
+                  <span
+                    key={tech}
+                    className="bg-slate-800 px-3 py-1 rounded-lg text-sm"
+                  >
+                    {tech}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-6 space-y-5">
+
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-blue-400">
+                    Challenge
+                  </p>
+
+                  <p className="mt-2 text-slate-300">
+                    {project.challenge}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-blue-400">
+                    Solution
+                  </p>
+
+                  <p className="mt-2 text-slate-300">
+                    {project.solution}
+                  </p>
+                </div>
+
+                <div className="border-t border-slate-800 pt-5">
+                  <p className="text-xs uppercase tracking-wider text-blue-400">
+                    Impact
+                  </p>
+
+                  <p className="mt-2 font-medium text-white">
+                    {project.impact}
+                  </p>
+                </div>
+
+              </div>
             </div>
-
-            <div className="mt-6 space-y-5">
-
-              <div>
-                <p className="text-xs uppercase tracking-wider text-blue-400">
-                  Challenge
-                </p>
-
-                <p className="mt-2 text-slate-300">
-                  {project.challenge}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wider text-blue-400">
-                  Solution
-                </p>
-
-                <p className="mt-2 text-slate-300">
-                  {project.solution}
-                </p>
-              </div>
-
-              <div className="border-t border-slate-800 pt-5">
-                <p className="text-xs uppercase tracking-wider text-blue-400">
-                  Impact
-                </p>
-
-                <p className="mt-2 font-medium text-white">
-                  {project.impact}
-                </p>
-              </div>
-
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
+          ))}
+        </div>
+      </section>
+   // </div>
   );
 }

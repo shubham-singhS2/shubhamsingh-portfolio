@@ -27,42 +27,44 @@ export default function Achievements() {
   ];
 
   return (
-    <section className="max-w-7xl mx-auto px-6 pt-0 pb-12">
-      <div className="mb-12">
-        <p className="text-blue-400 font-medium">
-          ACHIEVEMENTS
-        </p>
+    // <div className="w-full bg-[#0b1222]">
+      <section className="max-w-7xl mx-auto px-6 pt-0 pb-12">
+        <div className="mb-12">
+          <p className="text-blue-400 font-medium">
+            ACHIEVEMENTS
+          </p>
 
-        <h2 className="text-4xl font-bold mt-3">
-          Impact Delivered
-        </h2>
+          <h2 className="text-4xl font-bold mt-3">
+            Impact Delivered
+          </h2>
 
-        <p className="text-slate-400 mt-4 max-w-2xl">
-          Quantifiable outcomes from cloud, automation,
-          DevOps and platform engineering initiatives.
-        </p>
-      </div>
+          <p className="text-slate-400 mt-4 max-w-2xl">
+            Quantifiable outcomes from cloud, automation,
+            DevOps and platform engineering initiatives.
+          </p>
+        </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <div
-            key={stat.title}
-            className="border border-slate-800 rounded-xl p-6 bg-slate-900/50"
-          >
-            <h3 className="text-5xl font-bold text-blue-400">
-              {stat.value}
-            </h3>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {stats.map((stat) => (
+            <div
+              key={stat.title}
+              className="flex flex-col border border-slate-800 rounded-xl p-6 bg-slate-900/50"
+            >
+              <h3 className="text-5xl font-bold text-blue-400">
+                {stat.value}
+              </h3>
 
-            <h4 className="mt-4 font-semibold text-lg">
-              {stat.title}
-            </h4>
+              <h4 className="mt-4 font-semibold text-lg">
+                {stat.title}
+              </h4>
 
-            <p className="mt-3 text-slate-400 text-sm">
-              {stat.description}
-            </p>
-          </div>
-        ))}
-      </div>
-    </section>
+              <p className="mt-3 text-slate-400 text-sm flex-1">
+                {stat.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+    //</div>
   );
 }

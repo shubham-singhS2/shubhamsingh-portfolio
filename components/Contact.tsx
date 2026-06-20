@@ -15,32 +15,14 @@ export default function Contact() {
         </h2>
 
         <p className="mt-5 text-slate-400 max-w-2xl leading-relaxed">
-          I'm currently open to DevOps Engineer,
-          Platform Engineer, Cloud Engineer and
-          DevSecOps opportunities where I can contribute
-          to cloud infrastructure, automation and platform
-          reliability initiatives.
+          I'm currently open to{" "}
+          <span className="text-slate-200">DevOps Engineer</span>,{" "}
+          <span className="text-slate-200">Platform Engineer</span>,{" "}
+          <span className="text-slate-200">Cloud Engineer</span> and{" "}
+          <span className="text-slate-200">DevSecOps</span> opportunities
+          where I can contribute to cloud infrastructure, automation and
+          platform reliability initiatives.
         </p>
-
-        <div className="mt-8 flex flex-wrap gap-3">
-
-          <span className="bg-slate-800 px-4 py-2 rounded-lg">
-            DevOps Engineer
-          </span>
-
-          <span className="bg-slate-800 px-4 py-2 rounded-lg">
-            Platform Engineer
-          </span>
-
-          <span className="bg-slate-800 px-4 py-2 rounded-lg">
-            Cloud Engineer
-          </span>
-
-          <span className="bg-slate-800 px-4 py-2 rounded-lg">
-            DevSecOps Engineer
-          </span>
-
-        </div>
 
         <div className="mt-10 flex flex-wrap gap-4">
 
@@ -72,8 +54,8 @@ export default function Contact() {
         </div>
 
         <p className="mt-8 text-sm text-slate-500">
-          Based in Gurugram, India • Available for remote,
-          hybrid and onsite opportunities.
+          Based in New Delhi, India • Available for remote, hybrid and
+          onsite opportunities.
         </p>
 
       </div>
