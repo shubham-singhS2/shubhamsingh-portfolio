@@ -32,11 +32,22 @@ export default function Certifications() {
             key={cert.code}
             className="border border-slate-800 rounded-2xl p-8 bg-slate-900/50"
           >
-            <div className="text-blue-400 font-semibold">
-              {cert.code}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="border border-slate-700 rounded-lg p-2 bg-slate-900/60 shrink-0">
+                <img
+                  src="https://skillicons.dev/icons?i=aws"
+                  alt="AWS"
+                  width={32}
+                  height={32}
+                />
+              </div>
+
+              <div className="text-blue-400 font-semibold">
+                {cert.code}
+              </div>
             </div>
 
-            <h3 className="text-2xl font-semibold mt-3">
+            <h3 className="text-2xl font-semibold">
               {cert.name}
             </h3>
 

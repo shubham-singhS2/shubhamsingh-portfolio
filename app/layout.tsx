@@ -33,6 +33,10 @@ export const metadata: Metadata = {
 
   creator: "Shubham Singh",
 
+  alternates: {
+    canonical: "https://shubham-singh.in",
+  },
+
   openGraph: {
     title: "Shubham Singh | DevOps Engineer",
 
@@ -74,6 +78,45 @@ export const metadata: Metadata = {
   },
 };
 
+const personJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Person",
+  name: "Shubham Singh",
+  jobTitle: "DevOps / DevSecOps Engineer",
+  url: "https://shubham-singh.in",
+  email: "mailto:shubham.devops@outlook.com",
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "Gurugram",
+    addressCountry: "IN",
+  },
+  sameAs: [
+    "https://github.com/shubham-singhS2",
+    "https://www.linkedin.com/in/shubham-singhs2/",
+  ],
+  knowsAbout: [
+    "AWS",
+    "Kubernetes",
+    "Terraform",
+    "Ansible",
+    "Docker",
+    "Jenkins",
+    "CI/CD",
+    "DevOps",
+    "Infrastructure Automation",
+  ],
+  hasCredential: [
+    {
+      "@type": "EducationalOccupationalCredential",
+      name: "AWS Certified Solutions Architect - Associate (SAA-C03)",
+    },
+    {
+      "@type": "EducationalOccupationalCredential",
+      name: "AWS Certified SysOps Administrator - Associate (SOA-C02)",
+    },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -81,6 +124,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+        />
+      </head>
       <body>
         <Clarity />
         {children}

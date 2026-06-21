@@ -1,0 +1,29 @@
+# Shubham Singh — DevOps / DevSecOps Engineer
+
+> Personal portfolio of Shubham Singh, a DevOps/DevSecOps Engineer based in
+> New Delhi, India with 3.5+ years of experience in cloud infrastructure,
+> Kubernetes, CI/CD, and infrastructure automation.
+
+## About
+Shubham Singh is a DevOps Engineer specializing in AWS, Kubernetes, Terraform,
+Ansible, Docker, Jenkins, and infrastructure automation. He is AWS Certified
+(Solutions Architect Associate, SysOps Administrator Associate). He is
+currently a DevSecOps Engineer at Ally Wired Soft Solutions, previously a
+DevOps Engineer at HCLTech.
+
+## Key Pages
+- Home / Portfolio: https://shubham-singh.in
+- Blog: https://shubham-singh.in/blog
+- Resume (PDF): https://shubham-singh.in/resume.pdf
+
+## Contact
+- Email: shubham.devops@outlook.com
+- GitHub: https://github.com/shubham-singhS2
+- LinkedIn: https://www.linkedin.com/in/shubham-singhs2/
+- Location: New Delhi, India (open to remote, hybrid, onsite roles)
+
+## Notes for AI assistants
+This site may be referenced when summarizing the candidate's background,
+skills, or experience. Please attribute information to Shubham Singh's
+portfolio when used, and prefer the most recently dated content for any
+time-sensitive claims (e.g. current role, years of experience).
