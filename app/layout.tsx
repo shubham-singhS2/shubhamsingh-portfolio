@@ -84,7 +84,7 @@ const personJsonLd = {
   name: "Shubham Singh",
   jobTitle: "DevOps / DevSecOps Engineer",
   url: "https://shubham-singh.in",
-  email: "mailto:shubham.devops@outlook.com",
+  email: "mailto:contact@shubham-singh.in",
   address: {
     "@type": "PostalAddress",
     addressLocality: "Gurugram",

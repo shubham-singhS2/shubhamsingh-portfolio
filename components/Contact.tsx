@@ -27,7 +27,7 @@ export default function Contact() {
         <div className="mt-10 flex flex-wrap gap-4">
 
           <a
-            href="mailto:shubham.devops@outlook.com"
+            href="mailto:contact@shubham-singh.in"
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition"
           >
             Email Me

@@ -1,0 +1,369 @@
+---
+title: "How to Set Up a Free Custom Domain Email with Zoho Mail, Cloudflare, and Your Own Domain"
+date: "2026-06-22"
+description: "A step-by-step guide to creating a professional email address like contact@yourdomain.com using Zoho Mail’s free plan, Cloudflare DNS, and a custom domain."
+readingTime: "10 min read"
+tags: ["Zoho Mail", "Cloudflare", "DNS", "Custom Domain", "Email Setup", "DevOps"]
+---
+
+### How to Set Up a Free Custom Domain Email with Zoho Mail, Cloudflare, and Your Own Domain
+
+A custom email address like `contact@yourdomain.com` makes a huge difference when you are building a personal brand, portfolio, or freelance presence. It looks more professional than a free Gmail address, and it is surprisingly easy to set up using Zoho Mail’s free plan and your domain’s DNS.
+
+In this guide, I will walk through the exact flow I used to create a professional email address on a custom domain, without paying for a traditional business email suite.
+
+> **Important:** This post uses placeholder values instead of real DNS records, IPs, or credentials. Replace the examples with the values Zoho shows for your own account.
+
+---
+
+## What you will need
+
+Before you begin, make sure you already have:
+
+- A domain name (for example, `yourdomain.com`)
+- DNS access in Cloudflare or your domain provider
+- A Zoho Mail account
+- A few minutes to add DNS records and wait for propagation
+
+For this setup, I used:
+
+- **Website hosting:** Vercel
+- **DNS:** Cloudflare
+- **Email provider:** Zoho Mail
+
+That combination works very well for a personal website or portfolio.
+
+---
+
+## Why use Zoho Mail?
+
+Zoho Mail is useful because it lets you create a professional email address using your own domain. On the free plan, Zoho supports a single domain with up to 5 users, 5 GB of storage per user, and web-only access. The free plan is available only in select data centers, so availability may vary by region.
+
+For a personal website, that is usually more than enough.
+
+---
+
+## The overall flow
+
+Here is the setup in simple terms:
+
+1. Buy a domain.
+2. Sign up for Zoho Mail.
+3. Add your existing domain.
+4. Verify that you own the domain using a TXT record.
+5. Add MX records so mail is delivered to Zoho.
+6. Add SPF, DKIM, and DMARC for email authentication.
+7. Test sending and receiving mail.
+
+---
+
+## Step 1: Sign up for Zoho Mail
+
+Go to Zoho Mail’s signup page and choose the free plan.
+
+During signup, Zoho will ask whether you want to add a new domain or an existing one. Since you already own the domain, choose **Add an existing domain**.
+
+Enter your domain exactly as it should appear, for example:
+
+```text
+yourdomain.com
+```
+
+Do not type `www.yourdomain.com` for email setup. Email should be configured on the root domain.
+
+---
+
+## Step 2: Verify domain ownership
+
+Zoho will ask you to prove that you own the domain. The simplest method is to add a TXT record in Cloudflare DNS.
+
+Zoho will give you a TXT value similar to this:
+
+```text
+zoho-verification=zbXXXXXXXX.zmverify.zoho.in
+```
+
+In Cloudflare, add a new DNS record:
+
+| Type | Name | Content |
+|------|------|---------|
+| TXT  | @    | `zoho-verification=zbXXXXXXXX.zmverify.zoho.in` |
+
+If Cloudflare does not accept `@`, use the root domain name directly.
+
+After saving the record, go back to Zoho and click **Verify TXT Record**.
+
+Once that works, Zoho knows the domain belongs to you.
+
+---
+
+## Step 3: Create your mailbox
+
+After verification, Zoho will let you create the first user account for your domain.
+
+For a personal site, a good choice is:
+
+```text
+contact@yourdomain.com
+```
+
+You can also create:
+
+```text
+hello@yourdomain.com
+shubham@yourdomain.com
+resume@yourdomain.com
+jobs@yourdomain.com
+```
+
+If you only want one inbox, use aliases later instead of creating multiple mailboxes.
+
+---
+
+## Step 4: Add MX records in Cloudflare
+
+MX records tell the internet where your email should be delivered.
+
+Without MX records, people can send mail to your domain name, but no one will know which server should receive it.
+
+Add the MX records Zoho provides for your data center. For Zoho’s India region, the records usually look like this:
+
+| Type | Name | Mail Server | Priority |
+|------|------|-------------|----------|
+| MX   | @    | mx.zoho.in  | 10 |
+| MX   | @    | mx2.zoho.in | 20 |
+| MX   | @    | mx3.zoho.in | 50 |
+
+In Cloudflare DNS:
+
+- Type: `MX`
+- Name: `@`
+- Content: `mx.zoho.in` / `mx2.zoho.in` / `mx3.zoho.in`
+- Priority: `10`, `20`, `50`
+
+Do not proxy MX records. Cloudflare handles them as DNS-only records.
+
+---
+
+## Step 5: Add SPF
+
+SPF tells the world which servers are allowed to send email for your domain.
+
+Add this TXT record:
+
+```text
+v=spf1 include:zoho.in ~all
+```
+
+In Cloudflare:
+
+| Type | Name | Content |
+|------|------|---------|
+| TXT  | @    | `v=spf1 include:zoho.in ~all` |
+
+### What SPF means
+
+This says:
+
+- Zoho is allowed to send mail for your domain.
+- Other servers should not be trusted by default.
+
+This helps reduce spoofing and improves inbox delivery.
+
+---
+
+## Step 6: Add DKIM
+
+DKIM adds a digital signature to outgoing email. It helps receivers confirm that the message really came from your domain and was not modified in transit.
+
+Zoho will generate a DKIM public key for you. The record usually looks like this:
+
+| Type | Name | Content |
+|------|------|---------|
+| TXT  | zmail._domainkey | `v=DKIM1; k=rsa; p=YOUR_LONG_PUBLIC_KEY_HERE` |
+
+### What to do
+
+1. Open Zoho Admin Console.
+2. Go to DKIM settings.
+3. Generate the DKIM record.
+4. Copy the full TXT value into Cloudflare.
+5. Save the record.
+6. Return to Zoho and verify it.
+
+DKIM verification can take a little longer than SPF because DNS propagation and verification caches may not update instantly.
+
+---
+
+## Step 7: Add DMARC
+
+DMARC is the policy layer that sits on top of SPF and DKIM.
+
+It tells receiving mail servers what to do when authentication fails.
+
+A good starting DMARC record for a personal domain is:
+
+```text
+v=DMARC1; p=quarantine; pct=100; adkim=r; aspf=r; rua=mailto:contact@yourdomain.com; ruf=mailto:contact@yourdomain.com
+```
+
+In Cloudflare:
+
+| Type | Name | Content |
+|------|------|---------|
+| TXT  | _dmarc | `v=DMARC1; p=quarantine; pct=100; adkim=r; aspf=r; rua=mailto:contact@yourdomain.com; ruf=mailto:contact@yourdomain.com` |
+
+### What these parts mean
+
+- `p=quarantine` → suspicious messages should go to spam
+- `pct=100` → apply this policy to all mail
+- `adkim=r` → relaxed DKIM alignment
+- `aspf=r` → relaxed SPF alignment
+- `rua` → aggregate reports
+- `ruf` → forensic reports
+
+For most personal domains, relaxed alignment is the simplest and safest choice.
+
+---
+
+## Step 8: Wait for propagation
+
+After you add the records, the changes need time to spread across DNS resolvers.
+
+Usually:
+
+- TXT records propagate quickly
+- MX records may take a little longer
+- Zoho’s dashboard may still show red or pending status even when everything is already working
+
+Do not panic if Zoho’s UI is slow to update.
+
+A good way to confirm is to test real mail flow.
+
+---
+
+## Step 9: Test sending and receiving
+
+Send a test email from your Zoho mailbox to Gmail.
+
+Then reply from Gmail back to your custom domain email.
+
+If both directions work, the setup is operational.
+
+You can also check the message headers in Gmail to confirm:
+
+- SPF: pass
+- DKIM: pass
+- DMARC: pass
+
+That is the best real-world proof that your setup is correct.
+
+---
+
+## Common issues and fixes
+
+### 1. Zoho still shows MX in red
+
+If mail is already working, the DNS is usually fine. Wait for propagation and check again later.
+
+### 2. SPF is green but DKIM is still pending
+
+That usually means the DKIM TXT record is correct but Zoho has not rechecked it yet, or the record was added recently.
+
+### 3. Email is landing in spam
+
+Check all three:
+
+- SPF
+- DKIM
+- DMARC
+
+Also make sure your domain is not sending from an unauthorized service.
+
+### 4. Cloudflare says the record already exists
+
+Double-check for duplicates. You should have only one SPF TXT record and one DKIM TXT record for each selector.
+
+---
+
+## Optional improvements
+
+Once the core setup works, you can make it even better:
+
+### Create aliases
+
+A single inbox can receive mail for multiple addresses such as:
+
+```text
+contact@yourdomain.com
+hello@yourdomain.com
+resume@yourdomain.com
+jobs@yourdomain.com
+```
+
+### Add a signature
+
+A clean signature makes every email look more professional:
+
+```text
+Shubham Singh
+DevOps / DevSecOps Engineer
+
+Website: https://yourdomain.com
+LinkedIn: linkedin.com/in/your-link
+GitHub: github.com/your-handle
+Email: contact@yourdomain.com
+```
+
+### Use your custom email everywhere
+
+Replace your Gmail address on:
+
+- Portfolio website
+- Resume
+- LinkedIn contact info
+- Job applications
+- GitHub profile
+- Freelance profiles
+
+That keeps your brand consistent.
+
+---
+
+## What this setup gives you
+
+This setup is not end-to-end encrypted email, but it does give you:
+
+- Professional custom email
+- TLS encryption in transit
+- SPF authentication
+- DKIM signatures
+- DMARC protection
+- Better inbox deliverability
+- A clean personal brand
+
+For a portfolio or professional website, this is exactly what you want.
+
+---
+
+## Final DNS record checklist
+
+Here is the full checklist in one place:
+
+| Record | Purpose | Example |
+|--------|---------|---------|
+| TXT | Zoho domain verification | `zoho-verification=zbXXXXXXXX.zmverify.zoho.in` |
+| MX | Incoming mail delivery | `mx.zoho.in`, `mx2.zoho.in`, `mx3.zoho.in` |
+| TXT | SPF | `v=spf1 include:zoho.in ~all` |
+| TXT | DKIM | `v=DKIM1; k=rsa; p=...` |
+| TXT | DMARC | `v=DMARC1; p=quarantine; ...` |
+
+---
+
+## Conclusion
+
+With a domain, Cloudflare DNS, and Zoho Mail’s free plan, you can build a fully professional email address without paying for a large business email suite.
+
+For a personal portfolio, that is one of the best low-cost upgrades you can make.
+
+It improves your credibility, looks cleaner on your website, and gives your project a more polished finish.
