@@ -1,0 +1,341 @@
+---
+title: "I Built a Privacy Layer for AI Coding Tools — CodeMask UI and CodeMask Proxy"
+date: "2026-07-05"
+description: "How I built two open source tools to stop secrets from leaking to LLM APIs — a browser-based sanitizer for manual AI chats and a local proxy server for AI coding agents like Cline and Claude Code."
+readingTime: "12 min read"
+tags: ["DevSecOps", "AI", "OpenSource", "Security", "Node.js", "React", "Privacy"]
+---
+
+### I Built a Privacy Layer for AI Coding Tools — CodeMask UI and CodeMask Proxy
+
+I was debugging a config file of my personal project and pasted it straight into Claude to get help. A few seconds later I looked at what I had actually sent: internal IP addresses, a database password, and an API key. All of it. To a cloud API. Without thinking.
+
+I don't think I am the only one who has done this. Most developers use AI assistants daily, and most of the time the code going in contains things it shouldn't. This post is about the two tools I built to fix that — and what I learned building them.
+
+---
+
+### The Problem — Two Different Workflows
+
+Before building anything, I realized the problem has two distinct shapes depending on how you use AI.
+
+**Workflow 1 — Manual AI chat (ChatGPT, Claude.ai, Gemini)**
+
+You copy a file, paste it into the chat, ask your question, copy the response. The sensitive data goes in with the code because you are doing the pasting manually and there is no gate between your clipboard and the AI.
+
+**Workflow 2 — AI coding agents (Cline, Claude Code, Cursor)**
+
+These tools read your files automatically. When you ask Cline to explain a function, it reads the file, builds a prompt, and calls the LLM API directly. There is no paste step at all. Your secrets go out in the background with every request without you ever touching them.
+
+Same root problem, completely different mechanism. Each needed a different solution.
+
+---
+
+### Solution 1 — CodeMask UI
+
+**What it is:** A browser-based tool that sanitizes code before you share it with any AI chat, and restores real values after the AI responds.
+
+**How it works:** Two-way flow with a session registry.
+
+When you paste code in and click Sanitize, the tool scans for secrets using regex patterns and replaces each one with a numbered placeholder:
+
+```
+DB_HOST = "192.168.50.100"     →    DB_HOST = "{{IP_1}}"
+DB_PASSWORD = "SuperSecret123" →    DB_PASSWORD = "{{PASSWORD_1}}"
+API_KEY = "sk-test-abc123..."  →    API_KEY = "{{OPENAI_KEY_1}}"
+```
+
+A registry is built in the background mapping every placeholder to its real value. You copy the sanitized code, paste it into Claude or ChatGPT, and ask your question. When the AI responds with suggestions that reference `{{IP_1}}`, you paste that response back into the Restore tab. The tool looks up the registry and swaps every placeholder back to the real value before you see it.
+
+The registry persists in `localStorage` so it survives a page refresh. If you sanitize three different code files in one session, the same IP always gets the same placeholder, and all three can be restored from the same registry.
+
+**What it detects automatically:**
+
+| Category | Examples |
+|---|---|
+| IPv4 / CIDR | `10.10.10.10`, `192.168.1.0/24` |
+| IPv6 | Full and compressed formats |
+| AWS Keys | `AKIA...`, `AWS_SECRET_ACCESS_KEY` |
+| OpenAI Keys | `sk-...`, `sk-proj-...`, `sk_test_...` |
+| Anthropic Keys | `sk-ant-...` |
+| GitHub Tokens | `ghp_...`, `gho_...` |
+| GitLab Tokens | `glpat-...` |
+| Slack Tokens | `xoxb-...`, `xoxp-...` |
+| Bearer Tokens | `Authorization: Bearer ...` |
+| Generic API Keys | `api_key = "..."`, `token: "..."` |
+| JWT / Signing Keys | `jwt_signing_key = "..."` |
+| Passwords (quoted) | `password = "secret"` |
+| Passwords (unquoted) | `PASSWORD=Hello123`, `db_password=secret` |
+| DB Connection Strings | `postgres://user:pass@host` |
+| PEM Private Keys | `-----BEGIN PRIVATE KEY-----` blocks |
+
+**Architecture — nothing leaves the browser:**
+
+This is built with React and Vite. There is no backend, no server, no API calls. The entire sanitize and restore logic runs client-side in the browser. Your secrets never travel anywhere — not even to a server I control. The `patterns.js` file holds all the detection regexes and `sanitizer.js` handles the replace and restore logic. Both are plain JavaScript, readable, and extendable.
+
+```
+codemask/
+├── src/
+│   ├── engine/
+│   │   ├── patterns.js       ← detection regexes (add your own here)
+│   │   └── sanitizer.js      ← sanitize + restore logic
+│   ├── hooks/
+│   │   ├── useRegistry.js    ← session state + localStorage persistence
+│   │   └── useCopy.js        ← clipboard hook
+│   ├── components/
+│   │   ├── CodePanel.jsx     ← input/output panels
+│   │   ├── RegistryTable.jsx ← secrets table with blur/reveal
+│   │   └── ManualAdd.jsx     ← manual secret registration
+│   └── App.jsx
+```
+
+**Running it locally:**
+
+```bash
+git clone https://github.com/shubham-singhS2/CodeMask.git
+cd CodeMask
+npm install
+npm run dev
+# Open http://localhost:5173
+```
+
+Or with Docker:
+
+```bash
+docker run -d -p 8080:80 shubhamsinghs2/codemask:latest
+# Open http://localhost:8080
+```
+
+**One thing worth mentioning:** CIDR notation is handled properly. `192.168.1.0/24` becomes `{{IP_1}}/24` not `{{IP_1}}` — the prefix is preserved so the AI still understands it is a network range, not just a host address.
+
+---
+
+### Solution 2 — CodeMask Proxy
+
+**The problem with the UI tool for agent workflows:**
+
+When you use Cline or Claude Code, the agent reads your project files and sends them to the LLM API automatically. There is no paste step, so there is no place to intercept manually. By the time you see any output, your secrets have already been sent.
+
+The fix is a proxy server.
+
+**What it is:** A local Node.js/Express server that runs on `localhost:8080` and acts as a drop-in replacement for any OpenAI-compatible LLM API endpoint.
+
+You change one setting in your AI agent — point the base URL to `localhost:8080` instead of `api.openai.com` or `api.mistral.ai`. The agent never knows the difference. Every request passes through the proxy first.
+
+**The complete flow:**
+
+```
+AI Agent (Cline)
+      │
+      │  POST /v1/chat/completions
+      │  { messages: [{ content: "DB=192.168.1.10 password=secret" }] }
+      ▼
+CodeMask Proxy (localhost:8080)
+      │  scans all message content for secrets
+      │  builds session registry
+      │  replaces real values with placeholders
+      │
+      │  POST /v1/chat/completions  ← forwarded to real API
+      │  { messages: [{ content: "DB={{IP_1}} password={{PASSWORD_1}}" }] }
+      ▼
+Real LLM API (Mistral / OpenAI / your org LLM)
+      │
+      │  response: "The config connects to {{IP_1}} using {{PASSWORD_1}}"
+      ▼
+CodeMask Proxy
+      │  scans response for placeholders
+      │  restores real values from session registry
+      │
+      │  response: "The config connects to 192.168.1.10 using secret"
+      ▼
+AI Agent — receives real values, works normally
+```
+
+**Proof from a real test:**
+
+I asked Cline to explain a `config.py` file containing real IPs and passwords while the proxy was running. This is what the proxy logged as going to Mistral:
+
+```
+[VERIFY] ── What proxy sent to LLM ──────────────────
+[read_file for 'config.py'] Result:
+1 | DB_HOST = "{{IP_1}}"
+2 | DB_PASSWORD = "{{PASSWORD_1}}"
+3 | API_KEY = "{{OPENAI_KEY_1}}"
+[VERIFY] ─────────────────────────────────────────────
+```
+
+Mistral never saw a single real value. Cline received the response with real values fully restored and worked normally.
+
+**Session management — in-memory with TTL:**
+
+The registry that maps `{{IP_1}}` back to `192.168.1.10` lives in server memory, not a database or file. Each agent gets a session (derived from its API key), and sessions expire automatically after 60 minutes of inactivity. A cleanup timer runs every 10 minutes. If the proxy restarts, sessions clear — which is intentional. There is no sensitive data persisted anywhere on disk.
+
+```javascript
+// Each session holds:
+{
+  id: "auto-abc123",
+  registry: [
+    { placeholder: "{{IP_1}}", realValue: "192.168.1.10", type: "ip" },
+    { placeholder: "{{PASSWORD_1}}", realValue: "secret", type: "pass" }
+  ],
+  counters: { ip: 1, key: 0, pass: 1 },
+  lastUsed: Date.now(),
+  expiresInSec: 3450
+}
+```
+
+**Streaming — the tricky part:**
+
+LLM APIs stream responses as Server-Sent Events (SSE). Each chunk is a small JSON object with a few tokens of content. The challenge: a placeholder like `{{IP_1}}` can arrive split across two chunks:
+
+```
+Chunk 1: "connect to {{IP"
+Chunk 2: "_1}} and use port 5432"
+```
+
+Per-chunk restoration fails because neither chunk contains the complete placeholder. The fix: buffer the entire stream from the LLM, restore placeholders on the complete assembled text, then re-emit the restored content as fresh SSE chunks back to the agent. The agent gets a streaming response. The placeholders are restored correctly. Both requirements satisfied.
+
+**Running it:**
+
+```bash
+git clone https://github.com/shubham-singhS2/codemask-proxy.git
+cd codemask-proxy
+npm install
+cp .env.example .env
+npm start
+# Proxy running at http://localhost:8080
+```
+
+Or with Docker (recommended for daily use — runs in background, restarts on reboot):
+
+```bash
+docker run -d \
+  --name codemask-proxy \
+  --restart always \
+  -p 8080:8080 \
+  -e OPENAI_TARGET_URL=https://api.mistral.ai/v1 \
+  shubhamsinghs2/codemask-proxy:latest
+```
+
+**Configuring your agent (Cline example):**
+
+```
+API Provider: OpenAI Compatible
+Base URL:     http://localhost:8080
+API Key:      your-real-api-key  ← forwarded transparently
+Model:        mistral-small-latest
+```
+
+That is the entire setup. One config change and every request is protected.
+
+**Monitoring — endpoints and dashboard:**
+
+The proxy exposes management endpoints so you can inspect what is happening:
+
+```bash
+# Health + global stats
+curl http://localhost:8080/status | jq
+
+# Active sessions
+curl http://localhost:8080/sessions | jq
+
+# Full registry for one session (values partially masked in output)
+curl http://localhost:8080/session/SESSION_ID | jq
+
+# Last 50 requests
+curl http://localhost:8080/logs | jq
+
+# Clear a session
+curl -X DELETE http://localhost:8080/session/SESSION_ID
+```
+
+There is also a browser dashboard at `http://localhost:8080/dashboard` showing stat cards, session table with expandable registry, and a request log — useful if you prefer a visual view over curl.
+
+**Provider compatibility:**
+
+| Provider | Works | Notes |
+|---|---|---|
+| OpenAI | ✅ | Standard format |
+| Mistral | ✅ | Verified with Cline |
+| Anthropic | ✅ | `/v1/messages` route |
+| Groq | ✅ | Set `OPENAI_TARGET_URL=https://api.groq.com/openai` |
+| Ollama | ✅ | Set `OPENAI_TARGET_URL=http://localhost:11434` |
+| Org / internal LLM | ✅ | Set `DISABLE_TLS_VERIFY=true` for self-signed certs |
+| AWS Bedrock | ❌ | SigV4 auth not supported yet |
+| Google Gemini | ❌ | Different format not supported yet |
+
+**The self-signed certificate case:**
+
+If your organisation runs an internal LLM with a self-signed certificate, Node.js will refuse to connect by default. Rather than setting `NODE_TLS_REJECT_UNAUTHORIZED=0` in your terminal every time, you can set it once in `.env`:
+
+```env
+DISABLE_TLS_VERIFY=true
+```
+
+The proxy reads this at startup and sets the flag internally. You never have to think about it again.
+
+---
+
+### Testing Without a Real API Key
+
+Both tools can be tested completely without spending any API credits using a mock LLM server included in the proxy repo.
+
+```bash
+# Terminal 1 — start mock server (pretends to be Mistral/OpenAI)
+node mock-llm.js
+
+# Terminal 2 — start proxy pointing at mock
+# Set OPENAI_TARGET_URL=http://localhost:9999 in .env
+npm start
+
+# Terminal 3 — send a test request
+curl -s -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: fake-key" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{
+      "role": "user",
+      "content": "DB=192.168.1.10 password=secret123 fix this"
+    }]
+  }' | jq
+```
+
+The mock server prints a security check for every request showing whether it received placeholders or real values:
+
+```
+🔍 Security Check:
+   Placeholders found : ✅ YES
+   Real IPs present   : ✅ NO
+   Real passwords     : ✅ NO
+```
+
+---
+
+### How the Two Tools Relate
+
+They solve the same problem at different layers and are designed to be used together.
+
+| | CodeMask UI | CodeMask Proxy |
+|---|---|---|
+| **For** | Manual AI chat (ChatGPT, Claude.ai) | AI coding agents (Cline, Claude Code) |
+| **Triggered by** | You, manually | Agent requests, automatically |
+| **Storage** | Browser localStorage | Server memory, TTL-based |
+| **Runs as** | Static site (Nginx/Vercel) | Node.js process or Docker container |
+| **Setup** | Open a URL | One docker run or npm start |
+
+Both use the same detection engine — `patterns.js` and `sanitizer.js` — which is the core logic shared between them.
+
+---
+
+### What Is Next
+
+Both projects are deployed and working. The UI version is running on a K3s cluster deployed via ArgoCD using a GitOps pipeline — GitHub Actions builds a Docker image, pushes to Docker Hub, updates the Kubernetes manifests repo, and ArgoCD syncs the cluster automatically. That deployment story is worth a separate post.
+
+Both are open source:
+
+- **CodeMask UI:** [github.com/shubham-singhS2/CodeMask](https://github.com/shubham-singhS2/CodeMask)
+- **CodeMask Proxy:** [github.com/shubham-singhS2/codemask-proxy](https://github.com/shubham-singhS2/codemask-proxy)
+- **Docker Hub (UI):** [hub.docker.com/r/shubhamsinghs2/codemask](https://hub.docker.com/r/shubhamsinghs2/codemask)
+- **Docker Hub (Proxy):** [hub.docker.com/r/shubhamsinghs2/codemask-proxy](https://hub.docker.com/r/shubhamsinghs2/codemask-proxy)
+
+If you use AI coding tools and have not thought about what goes into those prompts, it is worth spending ten minutes on. The proxy setup takes less time than that.

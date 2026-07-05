@@ -42,7 +42,7 @@ export default function Hero() {
             <span>New Delhi, India</span>
           </div>
           <p className="mt-4 text-sm text-slate-500">
-            Last Updated: June 2026
+            Last Updated: July 2026
           </p>
 
           {/* Skills */}
