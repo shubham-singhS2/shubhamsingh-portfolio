@@ -1,0 +1,714 @@
+---
+title: "From Code to Cluster: GitOps CI/CD with GitHub Actions, ArgoCD, and K3s"
+date: "2026-07-08"
+description: "A complete step-by-step guide to deploying a real project using GitOps — GitHub Actions builds and scans a Docker image, ArgoCD watches a manifests repo, and K3s on two local VMs runs the workload. Every mistake included."
+readingTime: "15 min read"
+tags: ["DevOps", "GitOps", "Kubernetes", "ArgoCD", "K3s", "GitHub Actions", "Docker", "CI/CD"]
+---
+
+### From Code to Cluster: GitOps CI/CD with GitHub Actions, ArgoCD, and K3s
+
+Most CI/CD tutorials show you how to run `kubectl apply` inside a pipeline and call it done. That works, but it leaves your cluster in an unknown state the moment someone runs a command manually, a pod crashes, or a config drifts from what the pipeline deployed.
+
+This post covers a different approach — GitOps — and walks through the exact pipeline I built to deploy CodeMask, my open source privacy tool for AI coding agents. Every step is here, including the mistakes.
+
+By the end you will have this running:
+
+```
+git push to main
+        ↓
+GitHub Actions — build, scan, push Docker image
+        ↓
+codemask-gitops repo — image tag updated automatically
+        ↓
+ArgoCD — detects change, syncs to cluster
+        ↓
+K3s cluster (2 VMs) — rolling update, live
+```
+
+---
+
+### What Is GitOps and Why Does It Matter
+
+Most people understand CI/CD as: pipeline builds the code, pipeline deploys it. The pipeline is in charge of what runs in the cluster.
+
+GitOps flips this:
+
+```
+❌ Traditional CI/CD:
+pipeline builds → pipeline runs kubectl apply → cluster updated
+
+✅ GitOps:
+pipeline builds → pipeline updates a git repo
+→ ArgoCD watches that repo → cluster syncs automatically
+```
+
+The key difference: **the git repo is the source of truth for the cluster state, not the pipeline.**
+
+This matters for three reasons:
+
+**Audit trail.** Every deployment is a git commit — who did it, when, and what changed. Rolling back means `git revert` and pushing. ArgoCD handles the rest.
+
+**No drift.** If someone runs `kubectl apply` manually and changes something, ArgoCD detects the drift and reverts it back to what the repo says. The cluster always matches the repo.
+
+**Separation of concerns.** Your application code repo and your infrastructure state repo are different things. Different people, different permissions, different history.
+
+---
+
+### The Architecture
+
+Before touching anything, here is the complete picture of what we are building:
+
+```
+Developer machine
+      │
+      │  git push
+      ▼
+GitHub — codemask repo (application code)
+      │
+      │  triggers workflow
+      ▼
+GitHub Actions (ubuntu-latest, GitHub-hosted)
+  ├── npm install + npm run build
+  ├── Docker build → tagged with commit SHA
+  ├── Trivy vulnerability scan → GitHub Security tab
+  ├── Docker push → Docker Hub
+  └── Update image tag in codemask-gitops repo
+              │
+              │  commit to manifests repo
+              ▼
+GitHub — codemask-gitops repo (manifests only)
+  ├── namespace.yaml
+  ├── deployment.yaml  ← image tag updated here
+  ├── service.yaml
+  └── argocd-app.yaml
+              │
+              │  ArgoCD polls every ~3 min
+              ▼
+K3s Cluster
+  ├── VM1 → control plane (k3s server)
+  └── VM2 → worker node (k3s agent)
+              │
+              └── Rolling update → live at VM1_IP:30080
+```
+
+Two GitHub repos. One pipeline. One cluster. Let us build each piece.
+
+---
+
+### Part 1 — The K3s Cluster
+
+#### Why K3s
+
+K3s is a lightweight Kubernetes distribution — a single binary under 100MB that runs a fully conformant Kubernetes cluster. It is perfect for learning and for running on VMs or bare metal without the overhead of a full cloud-managed cluster.
+
+It comes with Traefik ingress controller, a local path provisioner, and CoreDNS built in. You do not need to install these separately.
+
+#### Setting Up Two VMs
+
+You need two Linux VMs. In this setup:
+
+```
+VM1 — k3s server (control plane)   — acts as master
+VM2 — k3s agent  (worker node)     — runs your pods
+```
+
+Both VMs need to be able to reach each other on the network. Note their IPs before starting.
+
+#### Install K3s on VM1 (Server)
+
+SSH into VM1:
+
+```bash
+curl -sfL https://get.k3s.io | sh -
+```
+
+Wait a minute for it to start. Then get the node token — you will need this to join VM2:
+
+```bash
+sudo cat /var/lib/rancher/k3s/server/node-token
+```
+
+Copy that token. Also note VM1's IP address.
+
+#### Install K3s on VM2 (Agent)
+
+SSH into VM2. Replace `<VM1_IP>` and `<TOKEN>` with your values:
+
+```bash
+curl -sfL https://get.k3s.io | \
+  K3S_URL=https://<VM1_IP>:6443 \
+  K3S_TOKEN=<TOKEN> sh -
+```
+
+#### Verify Both Nodes Are Ready
+
+Back on VM1:
+
+```bash
+kubectl get nodes -o wide
+```
+
+Expected output:
+
+```
+NAME   STATUS   ROLES                  AGE   VERSION
+vm1    Ready    control-plane,master   2m    v1.x.x
+vm2    Ready    <none>                 1m    v1.x.x
+```
+
+Both nodes showing `Ready` means the cluster is healthy.
+
+#### Copy kubeconfig to Your Dev Machine
+
+So you can run `kubectl` from your laptop instead of SSHing into VM1 every time:
+
+```bash
+# On your dev machine
+mkdir -p ~/.kube
+scp user@VM1_IP:/etc/rancher/k3s/k3s.yaml ~/.kube/config
+
+# Edit the file — change 127.0.0.1 to your VM1_IP
+sed -i 's/127.0.0.1/<VM1_IP>/g' ~/.kube/config
+
+# Test it
+kubectl get nodes
+```
+
+---
+
+### Part 2 — The Two GitHub Repos
+
+This is the most important architectural decision. Most people put everything in one repo.
+
+#### Why Two Repos
+
+**Repo 1: `codemask`** — application code only.
+
+```
+codemask/
+├── src/
+├── Dockerfile
+├── nginx.conf
+└── .github/
+    └── workflows/
+        └── ci-cd.yml   ← pipeline lives here
+```
+
+Developers push here. GitHub Actions runs here. This repo does not know about Kubernetes directly — it only knows how to build a Docker image.
+
+**Repo 2: `codemask-gitops`** — Kubernetes manifests only.
+
+```
+codemask-gitops/
+├── namespace.yaml
+├── deployment.yaml   ← only this file changes on each deploy
+├── service.yaml
+└── argocd-app.yaml
+```
+
+No application code here. No pipeline. ArgoCD watches this repo and nothing else. The only thing that ever changes in this repo is the image tag in `deployment.yaml`, updated automatically by the pipeline after each build.
+
+The reason this matters: Keeping the application and deployment manifests in separate repositories gives this setup a clearer separation of responsibilities, permissions, and deployment history. A monorepo can also work, but separate repositories make the GitOps flow easier to reason about for this project.
+
+#### Create codemask-gitops repo
+
+Create a new repository on GitHub named `codemask-gitops`. Then add these four files:
+
+**namespace.yaml** — creates a dedicated namespace for the app:
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: codemask
+```
+
+**deployment.yaml** — runs the app as a pod:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: codemask
+  namespace: codemask
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: codemask
+  template:
+    metadata:
+      labels:
+        app: codemask
+    spec:
+      containers:
+        - name: codemask
+          image: shubhamsinghs2/codemask:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+```
+
+Note `imagePullPolicy: Always` — this ensures K3s always pulls the latest tag, not a cached version.
+
+**service.yaml** — exposes the app on a NodePort:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: codemask
+  namespace: codemask
+spec:
+  selector:
+    app: codemask
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+  type: NodePort
+```
+
+`NodePort: 30080` means the app is accessible at `http://VM1_IP:30080` and `http://VM2_IP:30080` from outside the cluster.
+
+**argocd-app.yaml** — tells ArgoCD what to watch and where to deploy:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: codemask
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/shubham-singhS2/codemask-gitops
+    targetRevision: main
+    path: .
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: codemask
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+```
+
+Three important settings here:
+
+- `automated` — ArgoCD syncs automatically without you clicking anything
+- `prune: true` — if you delete a file from the repo, ArgoCD deletes the resource from the cluster
+- `selfHeal: true` — if someone manually changes something in the cluster, ArgoCD reverts it back to the repo state
+
+---
+
+### Part 3 — Installing ArgoCD
+
+With the cluster ready and the gitops repo created, install ArgoCD inside the cluster.
+
+#### Create the Namespace
+
+```bash
+kubectl create namespace argocd
+```
+
+#### Install ArgoCD
+
+Apply the official stable manifests:
+
+```bash
+kubectl apply -n argocd \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+```
+
+This deploys seven components:
+
+| Component | Role |
+|---|---|
+| argocd-server | Web UI + REST API + CLI endpoint |
+| argocd-repo-server | Clones git repos, reads manifests |
+| argocd-application-controller | Core reconciliation engine — compares git vs cluster |
+| argocd-applicationset-controller | Generates apps for multi-env/multi-cluster |
+| argocd-dex-server | Authentication (LDAP, OIDC, GitHub SSO) |
+| argocd-redis | Internal cache |
+| argocd-notifications-controller | Slack/email/webhook notifications |
+
+#### Wait for All Pods to Be Ready
+
+```bash
+kubectl get pods -n argocd -w
+```
+
+Wait until all pods show `STATUS = Running` and `READY = 1/1`. This usually takes 2-3 minutes.
+
+#### Access the ArgoCD UI
+
+By default, `argocd-server` is a ClusterIP service — only reachable from inside the cluster. Expose it via NodePort so you can access it from your browser:
+
+```bash
+kubectl patch svc argocd-server -n argocd \
+  -p '{"spec":{"type":"NodePort"}}'
+```
+
+Get the assigned port:
+
+```bash
+kubectl get svc argocd-server -n argocd
+```
+
+Look for the NodePort value (something like `32443`). Access the UI at:
+
+```
+https://VM1_IP:32443
+```
+
+Your browser will warn about a self-signed certificate — ArgoCD generates one by default. Proceed past the warning. You will see the ArgoCD login page.
+
+#### Get the Initial Admin Password
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d
+```
+
+Login with:
+- Username: `admin`
+- Password: the output of the command above
+
+Change the password after first login.
+
+#### Connect ArgoCD to the gitops Repo
+
+Apply the ArgoCD application manifest:
+
+```bash
+kubectl apply -f argocd-app.yaml
+```
+
+In the ArgoCD UI, you should now see a `codemask` application card appear. It will show `OutOfSync` or `Missing` at this point because the Docker image has not been pushed yet. That is expected.
+
+---
+
+### Part 4 — The GitHub Actions Pipeline
+
+Now wire everything together with the CI/CD pipeline.
+
+#### GitHub Secrets Required
+
+Go to `codemask` repo → Settings → Secrets and variables → Actions. Add three secrets:
+
+```
+DOCKER_USERNAME   → your Docker Hub username
+DOCKER_PASSWORD   → Docker Hub access token
+                    (generate at hub.docker.com → Account Settings → Security)
+GH_PAT            → GitHub Personal Access Token
+                    (needs Contents: Read and write on codemask-gitops repo)
+```
+
+**Important about GH_PAT:** generate a fine-grained token at GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens. Set Repository access to `codemask-gitops` only. Set Contents to Read and write. Also set workflows read and write since it will trigger action on push.
+
+
+#### The Full Workflow File
+
+Create `.github/workflows/ci-cd.yml` in the `codemask` repo:
+
+```yaml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+
+env:
+  IMAGE_NAME: shubhamsinghs2/codemask
+
+jobs:
+  build-scan-push:
+    name: Build, Scan & Push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Set image tag
+        id: tag
+        run: echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.sha }} \
+            -t ${{ env.IMAGE_NAME }}:latest \
+            .
+
+      - name: Trivy scan (table output)
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.sha }}
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
+      - name: Trivy scan (SARIF)
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
+      - name: Check SARIF file exists
+        id: sarif_check
+        if: always()
+        run: |
+          if [ -f trivy-results.sarif ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && steps.sarif_check.outputs.exists == 'true'
+        continue-on-error: true
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Docker login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push to Docker Hub
+        run: |
+          docker push ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.sha }}
+          docker push ${{ env.IMAGE_NAME }}:latest
+
+  update-manifests:
+    name: Update K8s Manifests
+    runs-on: ubuntu-latest
+    needs: build-scan-push
+
+    steps:
+      - name: Set image tag
+        id: tag
+        run: echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Checkout codemask-gitops
+        uses: actions/checkout@v4
+        with:
+          repository: shubham-singhS2/codemask-gitops
+          token: ${{ secrets.GH_PAT }}
+          path: codemask-gitops
+
+      - name: Update image tag
+        run: |
+          cd codemask-gitops
+          sed -i "s|image: .*codemask:.*|image: ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.sha }}|g" deployment.yaml
+
+      - name: Commit and push
+        run: |
+          cd codemask-gitops
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deployment.yaml
+          git diff --staged --quiet && echo "No changes" || \
+            git commit -m "deploy: codemask:${{ steps.tag.outputs.sha }}"
+          git push
+```
+
+#### Breaking Down the Two Jobs
+
+**Job 1: build-scan-push**
+
+This job runs on a GitHub-hosted `ubuntu-latest` runner. You do not need to set up or maintain any runner infrastructure — GitHub handles it.
+
+Key steps:
+- Build the React app with `npm run build`
+- Build a Docker image tagged with the short commit SHA (`abc1234`) and `latest`
+- Run Trivy twice: once for human-readable table output in the logs, once as SARIF format for the GitHub Security tab
+- Push both tags to Docker Hub
+
+Why tag with commit SHA and not just `latest`? Because `latest` tells you nothing about what is deployed. The SHA tag (`shubhamsinghs2/codemask:abc1234`) maps directly to a specific commit in your repo. When you need to know what is running in production, you look at the image tag, go to that commit, and you know exactly what the code was.
+
+The `permissions` block is required for the SARIF upload to the Security tab. Without `security-events: write`, GitHub rejects the upload.
+
+All Trivy steps have `continue-on-error: true` — For this learning pipeline, scan findings are reported without blocking deployment. Production environments should define an explicit policy for which severity levels block a release.
+
+**Job 2: update-manifests**
+
+This job only runs after Job 1 succeeds (`needs: build-scan-push`).
+
+It checks out the `codemask-gitops` repo using the `GH_PAT` token, runs a `sed` command to replace the image tag in `deployment.yaml`, then commits and pushes.
+
+The `git diff --staged --quiet` check prevents an empty commit if the image tag did not change for some reason — git would reject a push with nothing changed, so we check first.
+
+---
+
+### Part 5 — The Full GitOps Loop in Action
+
+After the pipeline runs, this is what happens:
+
+**Step 1 — Pipeline updates the gitops repo.**
+
+`deployment.yaml` gets a commit that changes one line:
+
+```yaml
+# Before
+image: shubhamsinghs2/codemask:latest
+
+# After
+image: shubhamsinghs2/codemask:a3f4c1d
+```
+
+**Step 2 — ArgoCD detects the change.**
+
+ArgoCD polls the `codemask-gitops` repo every three minutes. When it sees the new commit, the `codemask` app switches from `Synced` to `OutOfSync`.
+
+**Step 3 — ArgoCD syncs.**
+
+Because `syncPolicy.automated` is set, ArgoCD applies the change without any manual intervention. It runs `kubectl apply` internally with the new image tag.
+
+**Step 4 — K3s performs a rolling update.**
+
+Kubernetes performs a rolling update. For stronger zero-downtime guarantees, add a readiness probe so traffic reaches a new pod only after the application is ready.
+
+**Step 5 — ArgoCD shows Synced + Healthy.**
+
+In the UI you see the green status. The deployment is done.
+
+**Verify it on the cluster:**
+
+```bash
+kubectl get pods -n codemask
+# Both pods should show Running
+
+kubectl get svc -n codemask
+# Service shows NodePort 30080
+
+# Open in browser
+http://VM1_IP:30080
+```
+
+---
+
+### The Mistakes I Hit — The Part Tutorials Skip
+
+Every one of these cost real debugging time. If you hit them, now you know the fix.
+
+**1. GH_PAT gave 404 — wrong repo in token scope**
+
+I generated the fine-grained PAT but in the Repository access section I had not actually selected `codemask-gitops` in the dropdown. The token existed but had access to nothing.
+
+Fix: when generating a fine-grained token, explicitly select the target repo under "Only select repositories". Do not assume "All repositories" is selected by default.
+
+**2. Trivy SARIF upload failed**
+
+The upload step errored with a permissions issue. The fix is adding this to the job:
+
+```yaml
+permissions:
+  security-events: write
+```
+
+Without this, GitHub Actions does not allow writing to the Security tab even from the same repo.
+
+**3. `crypto.randomUUID()` not available over HTTP**
+
+After deploying to K3s and accessing via `http://VM_IP:30080`, the app's masking feature broke completely. The browser console showed:
+
+```
+Uncaught TypeError: crypto.randomUUID is not a function
+```
+
+This is a browser security restriction. The Web Crypto API (including `randomUUID`) is only available in secure contexts — HTTPS or localhost. Plain `http://` to an IP address is not a secure context.
+
+Fix: replace `crypto.randomUUID()` with a fallback:
+
+```javascript
+function generateId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for HTTP deployments
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+```
+
+This works over both HTTP and HTTPS. The IDs are only used for internal registry keys — not for security — so `Math.random()` is acceptable.
+
+---
+
+### Understanding ArgoCD's Reconciliation Loop
+
+It helps to understand what ArgoCD actually does internally, because it explains why GitOps is more reliable than pipeline-based deployments.
+
+ArgoCD runs a continuous reconciliation loop:
+
+```
+Every 3 minutes (or on webhook trigger):
+
+1. Clone codemask-gitops repo → get desired state
+2. Query the K3s cluster → get live state
+3. Compare desired vs live
+4. If different → apply the diff (sync)
+5. If same → do nothing (already synced)
+```
+
+This loop never stops. It means:
+
+- If a pod crashes, Kubernetes restarts it (that is Kubernetes's job)
+- If someone edits a ConfigMap manually, ArgoCD reverts it on the next cycle
+- If you delete a manifest from the gitops repo, ArgoCD deletes the resource from the cluster (`prune: true`)
+- If someone scales the deployment manually, ArgoCD scales it back to what the repo says (`selfHeal: true`)
+
+The cluster always converges toward the git repo. That is the guarantee GitOps provides.
+
+---
+
+### Repository Links
+
+Everything shown in this post is available in these repos:
+
+- **Application code:** [github.com/shubham-singhS2/CodeMask](https://github.com/shubham-singhS2/CodeMask)
+- **K8s manifests:** [github.com/shubham-singhS2/codemask-gitops](https://github.com/shubham-singhS2/codemask-gitops)
+- **Docker Hub:** [hub.docker.com/r/shubhamsinghs2/codemask](https://hub.docker.com/r/shubhamsinghs2/codemask)
+
+The previous post covers what CodeMask actually does — a privacy layer for AI coding tools that sanitizes secrets before they reach LLM APIs. This post covers how it is deployed.
+
+If you are setting up a similar pipeline and hit any of the errors above, the fixes are in the sections above. All of them are real, all of them took time to figure out, The fixes were scattered across documentation and error messages, so I collected them here.
